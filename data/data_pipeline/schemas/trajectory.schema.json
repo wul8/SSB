@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SFT Trajectory Schema",
+  "description": "完整的轨迹样本schema，包含scaffold对齐的多轮工具调用",
+  "type": "object",
+  "required": [
+    "sample_id",
+    "task_id",
+    "category",
+    "messages",
+    "verifier"
+  ],
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+__(rollout|recovery)_v[0-9]+$",
+      "description": "样本ID，格式：task_id__生成方式_版本（task_id本身格式不固定，取自真实生成任务的task_id）"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "关联的任务ID"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["Financial_Model", "Debugging", "Template", "Visualization"]
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3", "L4"]
+    },
+    "source_lineage_id": {
+      "type": "string",
+      "description": "用于split切分"
+    },
+    "scaffold": {
+      "type": "string",
+      "description": "scaffold配置文件路径@commit，如 swe-agent/spreadsheet.yaml@abc123"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user", "assistant", "tool"]
+          },
+          "content": {
+            "type": "string",
+            "description": "消息内容"
+          },
+          "thought": {
+            "type": "string",
+            "description": "assistant的思考过程（可选）"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "arguments"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": ["bash", "view_xlsx", "submit"]
+                },
+                "arguments": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "完整的对话消息序列"
+    },
+    "step_meta": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["i", "phase", "effective"],
+        "properties": {
+          "i": {
+            "type": "integer",
+            "description": "步骤索引"
+          },
+          "phase": {
+            "type": "string",
+            "enum": ["inspect", "plan", "implement", "execute", "verify", "submit"]
+          },
+          "effective": {
+            "type": "boolean",
+            "description": "该步骤是否有效（无执行错误且被后续引用）"
+          },
+          "cells_written": {
+            "type": "integer",
+            "default": 0
+          },
+          "touched_protected": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否修改了保护区域"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "execution_time_ms": {
+            "type": "number"
+          }
+        }
+      },
+      "description": "每个步骤的元数据"
+    },
+    "verifier": {
+      "type": "object",
+      "required": [
+        "recalculated",
+        "modification_accuracy",
+        "regression_accuracy",
+        "accuracy"
+      ],
+      "properties": {
+        "recalculated": {
+          "type": "boolean",
+          "description": "是否通过LibreOffice重算"
+        },
+        "modification_accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "regression_accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "官方口径的最终准确率"
+        },
+        "protected_violation": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "违反保护区域的单元格数"
+        },
+        "invariants_passed": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "通过的不变量名称列表"
+        },
+        "invariants_failed": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "excel_errors_in_output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "输出中Excel错误值的数量（#REF!, #VALUE!等）"
+        },
+        "formula_family_consistent": {
+          "type": "boolean",
+          "description": "公式族是否一致（不能一半公式一半硬编码）"
+        },
+        "style_preserved": {
+          "type": "boolean",
+          "description": "样式/合并/命名区域是否被破坏"
+        },
+        "verification_details": {
+          "type": "object",
+          "description": "详细的验证结果"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["generator"],
+      "properties": {
+        "generator": {
+          "type": "string",
+          "enum": ["rollout", "recovery_inject"],
+          "description": "轨迹生成方式"
+        },
+        "model": {
+          "type": "string",
+          "description": "如果是rollout，使用的模型名称"
+        },
+        "reviewed_by": {
+          "type": "string"
+        },
+        "golden_leak_check": {
+          "type": "string",
+          "enum": ["pass", "fail"],
+          "default": "pass"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "context_stats": {
+      "type": "object",
+      "properties": {
+        "total_steps": {"type": "integer"},
+        "effective_steps": {"type": "integer"},
+        "effective_ratio": {"type": "number"},
+        "view_xlsx_calls": {"type": "integer"},
+        "bash_calls": {"type": "integer"},
+        "execution_errors": {"type": "integer"},
+        "final_context_chars": {"type": "integer"},
+        "final_context_tokens_est": {"type": "integer"}
+      }
+    },
+    "for_negative_pool": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否进入hard negative池（用于后续偏好学习）"
+    },
+    "failure_mode": {
+      "type": "string",
+      "enum": [
+        "Task Misunderstanding",
+        "Insufficient Inspection",
+        "Wrong Target Selection",
+        "Turn Limit Exceeded",
+        "Format/Output Error",
+        "Other"
+      ],
+      "description": "如果accuracy < 1.0，主要失败模式"
+    }
+  }
+}

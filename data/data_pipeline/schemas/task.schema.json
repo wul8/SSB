@@ -1,0 +1,222 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SpreadsheetBench2 Task Schema",
+  "description": "统一的任务描述schema，适用于路线A和路线B",
+  "type": "object",
+  "required": [
+    "task_id",
+    "category",
+    "difficulty",
+    "input_path",
+    "golden_path",
+    "instruction",
+    "answer_position",
+    "target_cells",
+    "provenance"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^(fm|dbg|tpl|vis)_[0-9]{6}$",
+      "description": "任务ID，格式：类别前缀_六位数字"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["Financial_Model", "Debugging", "Template", "Visualization"],
+      "description": "任务类别"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["L1", "L2", "L3", "L4"],
+      "description": "难度等级"
+    },
+    "source_lineage_id": {
+      "type": "string",
+      "description": "来源工作簿的家族ID，用于split切分"
+    },
+    "input_path": {
+      "type": "string",
+      "description": "输入工作簿的相对路径"
+    },
+    "golden_path": {
+      "type": "string",
+      "description": "标准答案工作簿的相对路径"
+    },
+    "instruction": {
+      "type": "string",
+      "minLength": 50,
+      "description": "自然语言任务指令"
+    },
+    "answer_position": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sheet", "range"],
+        "properties": {
+          "sheet": {
+            "type": "string",
+            "description": "sheet名称（会做strip+小写容错）"
+          },
+          "range": {
+            "type": "string",
+            "pattern": "^[A-Z]+[0-9]+:[A-Z]+[0-9]+$",
+            "description": "Excel范围，如 B17:AH30"
+          }
+        }
+      },
+      "description": "官方评分范围列表"
+    },
+    "target_cells": {
+      "type": "object",
+      "description": "由golden-input diff机器算出的目标单元格清单",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["cell", "type", "golden_value"],
+          "properties": {
+            "cell": {
+              "type": "string",
+              "pattern": "^[A-Z]+[0-9]+$"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["value", "formula", "format"]
+            },
+            "input_value": {
+              "description": "input中的值（可能为null）"
+            },
+            "golden_value": {
+              "description": "golden中的值"
+            },
+            "formula": {
+              "type": "string",
+              "description": "如果type=formula，这里是公式文本"
+            }
+          }
+        }
+      }
+    },
+    "protected_cells": {
+      "type": "object",
+      "description": "不应被修改的单元格（answer_position范围外的区域）",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "cells"],
+        "properties": {
+          "name": {"type": "string"},
+          "type": {
+            "type": "string",
+            "enum": ["balance", "sum_equals", "ratio_consistency", "unit_scale"]
+          },
+          "cells": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "tolerance": {
+            "type": "number",
+            "default": 0.01
+          }
+        }
+      },
+      "description": "该任务应保持的不变量"
+    },
+    "compare_mode": {
+      "type": "string",
+      "enum": ["value", "formula", "color"],
+      "default": "value",
+      "description": "判分模式（Debugging专用）"
+    },
+    "debugging_error_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Double Counting",
+          "Embedded Hardcodes",
+          "Errors",
+          "Inconsistent Color",
+          "Incorrect Average",
+          "Cross-Sheet References",
+          "Incorrect index-match",
+          "Incorrect Sign",
+          "Relative vs Absolute References",
+          "Unit Mismatch"
+        ]
+      },
+      "description": "Debugging任务注入的错误类型"
+    },
+    "change_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "action"],
+        "properties": {
+          "step": {"type": "integer"},
+          "action": {"type": "string"},
+          "range": {"type": "string"},
+          "formula": {"type": "string"},
+          "rationale": {"type": "string"}
+        }
+      },
+      "description": "语义伪动作序列（路线B专用，用于oracle展开）"
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["route", "created_at"],
+      "properties": {
+        "route": {
+          "type": "string",
+          "enum": ["A", "B"],
+          "description": "构造路线：A=专家构造，B=真实语料+程序化变换"
+        },
+        "generator": {
+          "type": "string",
+          "description": "生成器版本标识"
+        },
+        "expert_reviewed": {
+          "type": "boolean",
+          "default": false
+        },
+        "reviewed_by": {
+          "type": "string",
+          "description": "复核专家ID"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "golden_leak_check": {
+          "type": "string",
+          "enum": ["pass", "fail", "pending"]
+        },
+        "source_url": {
+          "type": "string",
+          "description": "原始数据来源URL（如有）"
+        },
+        "license": {
+          "type": "string",
+          "description": "数据许可信息"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "num_sheets": {"type": "integer"},
+        "num_target_cells": {"type": "integer"},
+        "avg_dependency_depth": {"type": "number"},
+        "has_cross_sheet": {"type": "boolean"},
+        "instruction_words": {"type": "integer"},
+        "estimated_steps": {"type": "integer"}
+      }
+    }
+  }
+}
